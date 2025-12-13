@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coding Agent - Web Interface</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar: Project List -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Projects</h2>
+                <button id="newProjectBtn" class="btn-primary">+ New</button>
+            </div>
+            <ul id="projectList" class="project-list"></ul>
+        </aside>
+
+        <!-- Main Area: Chat Interface -->
+        <main class="main">
+            <!-- No Project Selected State -->
+            <div id="noProjectSelected" class="placeholder">
+                <div class="placeholder-content">
+                    <h1>🤖 Coding Agent</h1>
+                    <p>Select a project or create a new one to start</p>
+                </div>
+            </div>
+
+            <!-- Chat Container (hidden initially) -->
+            <div id="chatContainer" style="display: none;">
+                <!-- Header -->
+                <div class="header">
+                    <div class="header-left">
+                        <h1 id="projectName"></h1>
+                        <span id="statusIndicator" class="status-idle">Idle</span>
+                    </div>
+                    <div class="header-right">
+                        <button id="clearHistoryBtn" class="btn-secondary">Clear History</button>
+                    </div>
+                </div>
+
+                <!-- Conversation History -->
+                <div id="conversation" class="conversation"></div>
+
+                <!-- Tool Execution Live Feed -->
+                <div id="toolFeed" class="tool-feed" style="display: none;">
+                    <h3>🔧 Agent Activity</h3>
+                    <div id="toolEvents" class="tool-events"></div>
+                </div>
+
+                <!-- Input Area -->
+                <div class="input-area">
+                    <textarea
+                        id="taskInput"
+                        placeholder="Describe your coding task... (Ctrl+Enter to submit)"
+                        rows="3"
+                    ></textarea>
+                    <button id="submitBtn" class="btn-primary btn-submit">Submit Task</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
