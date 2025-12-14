@@ -39,33 +39,35 @@ export class Agent {
 
                 // Call LLM with tool support
                 const response = await this.callLLM();
-                const message = response.choices[0].message;
+
+                // Parse /v1/responses output format
+                const { message, toolCalls } = this.parseResponse(response);
 
                 // Add assistant message to history
                 this.history.push({
                     role: "assistant",
-                    content: message.content || ""
+                    content: message || ""
                 });
 
                 // Check for tool calls
-                if (!message.tool_calls || message.tool_calls.length === 0) {
+                if (!toolCalls || toolCalls.length === 0) {
                     // No more tools - task complete
                     return {
-                        content: message.content,
+                        content: message,
                         toolExecutions
                     };
                 }
 
                 // Execute all requested tools
-                console.log(`\n--- Agent is executing ${message.tool_calls.length} tool(s)... ---`);
-                const toolResults = await this.executeTools(message.tool_calls);
+                // console.log(`\n--- Agent is executing ${toolCalls.length} tool(s)... ---`);
+                const toolResults = await this.executeTools(toolCalls);
                 toolExecutions.push(...toolResults);
 
-                // Send tool results back to Xai API using response_id format
-                const toolMessages = toolResults.map(result => ({
-                    role: "tool",
-                    tool_call_id: result.toolCallId,
-                    content: JSON.stringify({
+                // Send tool results back to Xai API using /v1/responses format
+                const toolOutputs = toolResults.map(result => ({
+                    type: "function_call_output",
+                    call_id: result.toolCallId,
+                    output: JSON.stringify({
                         success: result.success,
                         summary: result.summary,
                         details: result.details,
@@ -74,10 +76,10 @@ export class Agent {
                     })
                 }));
 
-                // Call API again with tool results
+                // Call API again with tool results using previous_response_id
                 const toolResponseBody = {
-                    response_id: response.id,
-                    messages: toolMessages
+                    previous_response_id: response.id,
+                    input: toolOutputs
                 };
 
                 const toolResponse = await fetch(this.apiUrl, {
@@ -95,25 +97,26 @@ export class Agent {
                 }
 
                 const toolResponseData = await toolResponse.json();
-                const toolMessage = toolResponseData.choices[0].message;
+
+                // Parse the response after tool execution
+                const { message: newMessage, toolCalls: newToolCalls } = this.parseResponse(toolResponseData);
 
                 // Add assistant's response after tool execution to history
                 this.history.push({
                     role: "assistant",
-                    content: toolMessage.content || ""
+                    content: newMessage || ""
                 });
 
                 // Check if there are more tool calls
-                if (!toolMessage.tool_calls || toolMessage.tool_calls.length === 0) {
+                if (!newToolCalls || newToolCalls.length === 0) {
                     // No more tools - task complete
                     return {
-                        content: toolMessage.content,
+                        content: newMessage,
                         toolExecutions
                     };
                 }
 
-                // Continue with new tool calls
-                message = toolMessage;
+                // Continue with new tool calls (loop will continue)
             }
 
             // Max iterations reached
@@ -135,7 +138,7 @@ export class Agent {
     async callLLM() {
         const body = {
             model: this.model,
-            messages: [
+            input: [
                 {
                     role: "system",
                     content: "You are a helpful coding assistant. You can read files, write code, execute commands, search files, and run code. Use tools to help the user with their coding tasks. Always explain what you're doing and show your work."
@@ -143,7 +146,7 @@ export class Agent {
                 ...this.history
             ],
             tools: TOOL_DEFINITIONS,
-            store_messages: true,
+            store: true,
             temperature: 0.7
         };
 
@@ -165,6 +168,41 @@ export class Agent {
     }
 
     /**
+     * Parses the /v1/responses API output format
+     * @param {object} response - The API response object
+     * @returns {object} - Object with message content and toolCalls array
+     */
+    parseResponse(response) {
+        const output = response.output || [];
+        let messageContent = "";
+        const toolCalls = [];
+
+        for (const item of output) {
+            if (item.type === "message" && item.role === "assistant") {
+                // Extract text content from message
+                if (item.content && Array.isArray(item.content)) {
+                    for (const contentItem of item.content) {
+                        if (contentItem.type === "output_text") {
+                            messageContent += contentItem.text;
+                        }
+                    }
+                }
+            } else if (item.type === "function_call") {
+                // Tool call from the model
+                toolCalls.push({
+                    id: item.call_id,
+                    function: {
+                        name: item.name,
+                        arguments: item.arguments
+                    }
+                });
+            }
+        }
+
+        return { message: messageContent, toolCalls };
+    }
+
+    /**
      * Executes multiple tool calls and returns their results.
      * @param {Array} toolCalls - Array of tool call objects from LLM
      * @returns {Promise<Array>} Array of tool execution results
@@ -178,7 +216,7 @@ export class Agent {
 
         for (const toolCall of toolCalls) {
             const { id, function: { name, arguments: argsString } } = toolCall;
-
+            console.log(`Agent has called ${name} for ${argsString}`)
             try {
                 // Parse arguments
                 const args = JSON.parse(argsString);

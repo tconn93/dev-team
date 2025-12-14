@@ -136,10 +136,156 @@ glob_search({ pattern: "**/*.js" })
 grep_search({ pattern: "TODO", filePattern: "**/*.js" })
 ```
 
+## Multi-Agent System Architecture
+
+The system now supports multiple AI agents working collaboratively on projects through a web interface.
+
+### Overview
+
+- **Hybrid Workflow**: Coordinator agent analyzes requests and delegates tasks to specialist agents
+- **Role-Based Agents**: Predefined roles (Coordinator, Frontend, Backend, DevOps, Tester) + custom roles
+- **Communication**: Group chat for team-wide conversation + agent-to-agent private messaging
+- **Real-Time Dashboard**: WebSocket-powered UI showing agent status, tasks, and activity
+
+### Database Schema
+
+**New Tables** (via `002_multi_agent_system.sql`):
+- `agents`: Agent instances per project with role, status, current task
+- `roles`: Role definitions (predefined + custom) with system prompts
+- `agent_tasks`: Tasks assigned to agents with priority, status tracking
+- `agent_messages`: Per-agent conversation history
+- `agent_communications`: Private agent-to-agent messages
+- `group_messages`: Team-wide chat messages
+- `file_locks`: File locking to prevent concurrent write conflicts
+- `tool_executions`: Audit log of all tool executions
+
+### Backend Components
+
+**Managers** (`web/managers/`):
+- **AgentManager**: Agent CRUD, status management, statistics
+- **TaskManager**: Task creation, assignment, status transitions
+- **CommunicationManager**: Group chat + private messaging
+- **FileLockManager**: Acquire/release file locks with auto-expiration
+- **RoleManager**: Manage predefined and custom role definitions
+- **MultiAgentSessionManager**: Orchestrates multiple StreamingAgent instances per project
+
+**Agent Classes**:
+- **StreamingAgent**: Extended to support `agentId`, `systemPrompt`, pause/resume
+- **CoordinatorAgent**: Special agent with additional tools:
+  - `assign_task`: Create and assign tasks to specialist agents
+  - `send_agent_message`: Send private messages to other agents
+  - `get_agent_status`: Check agent status
+  - `wait_for_task`: Wait for task completion (non-blocking)
+
+### API Endpoints
+
+**Agents**: `POST/GET/PUT/DELETE /api/projects/:projectId/agents`
+**Tasks**: `POST/GET/PUT/DELETE /api/projects/:projectId/tasks`
+**Communication**:
+- `POST /api/projects/:projectId/messages/group` - Group chat
+- `POST /api/projects/:projectId/messages/agent` - Agent-to-agent
+- `GET /api/projects/:projectId/agents/:agentId/inbox` - Agent inbox
+**Roles**: `GET/POST/PUT/DELETE /api/roles`
+**Dashboard**: `GET /api/projects/:projectId/dashboard` - Aggregated data
+
+### WebSocket Protocol
+
+**Client → Server**:
+- `executeAgentTask`: Execute task with specific agent
+- `subscribeProject`: Subscribe to project-wide updates
+- `sendGroupMessage`: Send message to group chat
+- `pauseAgent` / `resumeAgent`: Control agent execution
+
+**Server → Client**:
+- `agentStatusUpdate`: Agent status changed (idle/working/waiting/paused)
+- `taskCreated` / `taskUpdated`: Task lifecycle events
+- `groupMessage`: Team chat message
+- `agentMessage`: Private agent-to-agent message
+- `toolExecution`: Tool execution by any agent (with agentId, agentName)
+- `fileLockUpdate`: File lock acquired/released
+
+### Frontend Architecture
+
+**UI Managers** (`web/public/app.js`):
+- **AgentUIManager**: Agent list, cards, status updates, detail modal
+- **TaskUIManager**: Kanban task board (Pending/In Progress/Completed)
+- **ChatUIManager**: Group chat interface
+- **DashboardUIManager**: Agent status grid, task stats, activity feed
+
+**Views**:
+- **Dashboard**: Real-time agent status, task overview, activity feed
+- **Chat**: Team-wide group conversation
+- **Tasks**: Kanban board for task management
+
+**Sidebar**:
+- **Team Tab**: Agent list with create/manage capabilities
+- **Files Tab**: Project file tree navigation
+
+### Key Features
+
+**File Locking**:
+- Database-backed locks prevent concurrent write conflicts
+- Auto-expiration (5 min default) with cleanup interval
+- Read locks (multiple allowed) vs Write locks (exclusive)
+
+**Task Management**:
+- Priority-based task ordering
+- Status tracking: pending → assigned → in_progress → completed/failed
+- Auto-timestamps for started/completed events
+- Task reassignment and delegation
+
+**Agent Intervention**:
+- Pause/resume agent execution
+- View agent conversation history
+- Assign tasks manually
+- Real-time status monitoring
+
+**Backward Compatibility**:
+- Legacy SessionManager preserved for single-agent mode
+- Old WebSocket events still supported
+- Existing projects continue working unchanged
+
+### Predefined Roles
+
+1. **Coordinator**: Analyzes requests, creates tasks, assigns to specialists, monitors progress
+2. **Frontend**: HTML, CSS, JavaScript, React, Vue, UI/UX
+3. **Backend**: Server logic, databases, APIs, authentication
+4. **DevOps**: Deployment, CI/CD, Docker, infrastructure
+5. **Tester**: Unit tests, integration tests, QA, bug detection
+
+### Running Multi-Agent Mode
+
+```bash
+# Start the web server
+cd web
+npm start
+
+# Access at http://localhost:3000
+# Create a project
+# Add agents with different roles
+# Agents collaborate via group chat and task assignment
+```
+
+### Development Notes
+
+- Each agent maintains separate conversation history
+- Coordinator uses LLM intelligence for dynamic task assignment
+- WebSocket rooms enable efficient project-wide event broadcasting
+- File locks use database for cross-process safety
+- All manager classes use SQLite with proper transaction handling
+
 ## Testing
 
-No automated test suite yet. Manual testing recommended with:
+**CLI Mode**:
 - File operations (create, read, edit)
 - Bash commands (npm, git)
 - Code execution (JS, Python)
 - Complex multi-step tasks
+
+**Web Multi-Agent Mode**:
+- Create/delete agents
+- Assign tasks manually and via coordinator
+- Monitor real-time agent status
+- Test group chat and agent-to-agent messaging
+- Verify file locking with concurrent operations
+- Test pause/resume controls

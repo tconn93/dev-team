@@ -4,10 +4,11 @@ import { createServer } from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDatabase } from './database/db.js';
-import { setupWebSocket } from './routes/websocket.js';
+import { setupWebSocket, broadcastToProject } from './routes/websocket.js';
 import { createApiRouter } from './routes/api.js';
 import { authMiddleware } from './auth/tokenAuth.js';
 import { SessionManager } from './managers/SessionManager.js';
+import { initializeBroadcast } from './utils/websocketBroadcast.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -59,6 +60,9 @@ async function startServer(port = 3000) {
 
     // Setup WebSocket
     setupWebSocket(server, sessionManager);
+
+    // Initialize broadcast utility for managers
+    initializeBroadcast(broadcastToProject);
 
     // Graceful shutdown
     process.on('SIGTERM', async () => {

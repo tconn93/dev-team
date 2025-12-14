@@ -7,6 +7,7 @@
 
 export const TOOL_DEFINITIONS = [
     {
+        type: "function",
         name: "file_read",
         description: "Read a file from the filesystem and return its contents",
         parameters: {
@@ -21,6 +22,7 @@ export const TOOL_DEFINITIONS = [
         }
     },
     {
+        type: "function",
         name: "file_write",
         description: "Create or overwrite a file with the specified content",
         parameters: {
@@ -39,6 +41,7 @@ export const TOOL_DEFINITIONS = [
         }
     },
     {
+        type: "function",
         name: "file_edit",
         description: "Find and replace text in an existing file",
         parameters: {
@@ -61,6 +64,7 @@ export const TOOL_DEFINITIONS = [
         }
     },
     {
+        type: "function",
         name: "bash_execute",
         description: "Execute a bash/shell command and return the output",
         parameters: {
@@ -75,6 +79,7 @@ export const TOOL_DEFINITIONS = [
         }
     },
     {
+        type: "function",
         name: "glob_search",
         description: "Find files matching a glob pattern",
         parameters: {
@@ -89,6 +94,7 @@ export const TOOL_DEFINITIONS = [
         }
     },
     {
+        type: "function",
         name: "grep_search",
         description: "Search for text patterns in files using regex",
         parameters: {
@@ -118,6 +124,7 @@ export const TOOL_DEFINITIONS = [
         }
     },
     {
+        type: "function",
         name: "code_execute",
         description: "Execute code in JavaScript or Python and return the output",
         parameters: {
@@ -142,5 +149,102 @@ export const TOOL_DEFINITIONS = [
     }
 ];
 
+// Coordinator-specific tools (only available to coordinator agents)
+export const COORDINATOR_TOOLS = [
+    {
+        type: "function",
+        name: "assign_task",
+        description: "Create a task and assign it to an agent with a specific role. Use this to delegate work to specialist agents.",
+        parameters: {
+            type: "object",
+            properties: {
+                agentRole: {
+                    type: "string",
+                    description: "Role of the agent to assign the task to ('frontend', 'backend', 'devops', 'tester', or custom role name)"
+                },
+                taskTitle: {
+                    type: "string",
+                    description: "Short, descriptive title for the task"
+                },
+                taskDescription: {
+                    type: "string",
+                    description: "Detailed description of what the agent should do. Be specific and include all necessary context."
+                },
+                priority: {
+                    type: "number",
+                    description: "Priority level (0=normal, higher numbers=more urgent). Default is 0.",
+                    default: 0
+                }
+            },
+            required: ["agentRole", "taskTitle", "taskDescription"]
+        }
+    },
+    {
+        type: "function",
+        name: "send_agent_message",
+        description: "Send a private message to another agent. Use for coordination, asking questions, or providing context.",
+        parameters: {
+            type: "object",
+            properties: {
+                targetAgentId: {
+                    type: "number",
+                    description: "ID of the agent to send the message to"
+                },
+                message: {
+                    type: "string",
+                    description: "The message content"
+                },
+                messageType: {
+                    type: "string",
+                    description: "Type of message ('message', 'question', 'response', 'task_handoff'). Default is 'message'.",
+                    default: "message"
+                }
+            },
+            required: ["targetAgentId", "message"]
+        }
+    },
+    {
+        type: "function",
+        name: "get_agent_status",
+        description: "Check the status of an agent or all agents in the project. Use to monitor progress.",
+        parameters: {
+            type: "object",
+            properties: {
+                agentId: {
+                    type: "number",
+                    description: "ID of specific agent to check. Omit to get status of all agents."
+                }
+            },
+            required: []
+        }
+    },
+    {
+        type: "function",
+        name: "wait_for_task",
+        description: "Wait for a task to complete before proceeding. Use when task dependencies exist.",
+        parameters: {
+            type: "object",
+            properties: {
+                taskId: {
+                    type: "number",
+                    description: "ID of the task to wait for"
+                },
+                timeoutMs: {
+                    type: "number",
+                    description: "Maximum time to wait in milliseconds. Default is 60000 (1 minute).",
+                    default: 60000
+                }
+            },
+            required: ["taskId"]
+        }
+    }
+];
+
+// Combined tool definitions for coordinator agents (standard + coordinator tools)
+export const COORDINATOR_TOOL_DEFINITIONS = [...TOOL_DEFINITIONS, ...COORDINATOR_TOOLS];
+
 // List of tool names for backward compatibility
 export const AVAILABLE_TOOLS = TOOL_DEFINITIONS.map(tool => tool.name);
+
+// List of coordinator tool names
+export const COORDINATOR_TOOL_NAMES = COORDINATOR_TOOL_DEFINITIONS.map(tool => tool.name);

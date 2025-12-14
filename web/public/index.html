@@ -5,58 +5,263 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Coding Agent - Web Interface</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Markdown rendering and syntax highlighting -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <!-- Sidebar: Project List -->
+        <!-- Sidebar: Projects and Agents -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <h2>Projects</h2>
-                <button id="newProjectBtn" class="btn-primary">+ New</button>
+                <h2 id="sidebarTitle">Projects</h2>
+                <button id="toggleViewBtn" class="btn-icon" title="Switch view" style="display: none;">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M2 4h12v1H2V4zm0 3h12v1H2V7zm0 3h12v1H2v-1z"/>
+                    </svg>
+                </button>
             </div>
+
+            <!-- Project List (shown when no project selected) -->
             <ul id="projectList" class="project-list"></ul>
+
+            <!-- Agent Panel (shown when project selected) -->
+            <div id="agentPanel" class="agent-panel" style="display: none;">
+                <div class="panel-tabs">
+                    <button id="agentsTabBtn" class="tab-btn active">Team</button>
+                    <button id="filesTabBtn" class="tab-btn">Files</button>
+                </div>
+
+                <!-- Agents Tab -->
+                <div id="agentsTab" class="tab-content">
+                    <div class="agent-panel-header">
+                        <button id="addAgentBtn" class="btn-primary btn-small">+ Add Agent</button>
+                    </div>
+                    <div id="agentList" class="agent-list"></div>
+                </div>
+
+                <!-- Files Tab -->
+                <div id="filesTab" class="tab-content" style="display: none;">
+                    <div class="file-tree-header">
+                        <button id="homeBtn" class="btn-icon" title="Go to project root">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M8 0L0 6v10h5V9h6v7h5V6L8 0z"/>
+                            </svg>
+                        </button>
+                        <div id="currentPath" class="current-path"></div>
+                    </div>
+                    <div id="fileTree" class="file-tree"></div>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <button id="projectsBtn" class="btn-secondary btn-small" style="display: none;">← Projects</button>
+            </div>
         </aside>
 
-        <!-- Main Area: Chat Interface -->
+        <!-- Main Area: Multi-view Interface -->
         <main class="main">
             <!-- No Project Selected State -->
             <div id="noProjectSelected" class="placeholder">
                 <div class="placeholder-content">
-                    <h1>🤖 Coding Agent</h1>
+                    <h1>🤖 Coding Agent Team</h1>
                     <p>Select a project or create a new one to start</p>
+                    <button id="createProjectBtn" class="btn-primary">+ Create New Project</button>
                 </div>
             </div>
 
-            <!-- Chat Container (hidden initially) -->
-            <div id="chatContainer" style="display: none;">
-                <!-- Header -->
+            <!-- Project Container (hidden initially) -->
+            <div id="projectContainer" style="display: none;">
+                <!-- Header with View Tabs -->
                 <div class="header">
                     <div class="header-left">
                         <h1 id="projectName"></h1>
-                        <span id="statusIndicator" class="status-idle">Idle</span>
+                    </div>
+                    <div class="header-center">
+                        <div class="view-tabs">
+                            <button id="dashboardTabBtn" class="view-tab active" data-view="dashboard">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                    <rect x="0" y="0" width="6" height="6"/>
+                                    <rect x="8" y="0" width="8" height="6"/>
+                                    <rect x="0" y="8" width="8" height="8"/>
+                                    <rect x="10" y="8" width="6" height="8"/>
+                                </svg>
+                                Dashboard
+                            </button>
+                            <button id="chatTabBtn" class="view-tab" data-view="chat">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                    <path d="M2 2h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5l-3 3V3a1 1 0 0 1 1-1z"/>
+                                </svg>
+                                Chat
+                            </button>
+                            <button id="tasksTabBtn" class="view-tab" data-view="tasks">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                    <path d="M2 2h4v4H2V2zm5 0h4v4H7V2zm5 0h4v4h-4V2zM2 7h4v4H2V7zm5 0h4v4H7V7z"/>
+                                </svg>
+                                Tasks
+                            </button>
+                        </div>
                     </div>
                     <div class="header-right">
-                        <button id="clearHistoryBtn" class="btn-secondary">Clear History</button>
+                        <button id="settingsBtn" class="btn-icon" title="Settings">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/>
+                                <path d="M13.5 8a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0zM8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
-                <!-- Conversation History -->
-                <div id="conversation" class="conversation"></div>
+                <!-- Dashboard View -->
+                <div id="dashboardView" class="view-content active">
+                    <div class="dashboard-grid">
+                        <!-- Agent Status Cards -->
+                        <div class="dashboard-section">
+                            <h2>Team Status</h2>
+                            <div id="agentStatusGrid" class="agent-status-grid"></div>
+                        </div>
 
-                <!-- Tool Execution Live Feed -->
-                <div id="toolFeed" class="tool-feed" style="display: none;">
-                    <h3>🔧 Agent Activity</h3>
-                    <div id="toolEvents" class="tool-events"></div>
+                        <!-- Task Overview -->
+                        <div class="dashboard-section">
+                            <h2>Task Overview</h2>
+                            <div id="taskStatsWidget" class="stats-widget"></div>
+                            <div id="recentTasksList" class="recent-tasks-list"></div>
+                        </div>
+
+                        <!-- Activity Feed -->
+                        <div class="dashboard-section full-width">
+                            <h2>Recent Activity</h2>
+                            <div id="activityFeed" class="activity-feed"></div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Input Area -->
-                <div class="input-area">
-                    <textarea
-                        id="taskInput"
-                        placeholder="Describe your coding task... (Ctrl+Enter to submit)"
-                        rows="3"
-                    ></textarea>
-                    <button id="submitBtn" class="btn-primary btn-submit">Submit Task</button>
+                <!-- Group Chat View -->
+                <div id="chatView" class="view-content" style="display: none;">
+                    <div class="chat-container">
+                        <div id="groupConversation" class="group-conversation"></div>
+                        <div class="chat-input-area">
+                            <textarea
+                                id="groupMessageInput"
+                                placeholder="Send a message to the team... (Ctrl+Enter to submit)"
+                                rows="3"
+                            ></textarea>
+                            <button id="sendGroupMessageBtn" class="btn-primary btn-submit">Send</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tasks View -->
+                <div id="tasksView" class="view-content" style="display: none;">
+                    <div class="tasks-header">
+                        <button id="createTaskBtn" class="btn-primary">+ New Task</button>
+                    </div>
+                    <div class="task-board">
+                        <div class="task-column" data-status="pending">
+                            <h3>Pending</h3>
+                            <div id="pendingTasks" class="task-list"></div>
+                        </div>
+                        <div class="task-column" data-status="in_progress">
+                            <h3>In Progress</h3>
+                            <div id="inProgressTasks" class="task-list"></div>
+                        </div>
+                        <div class="task-column" data-status="completed">
+                            <h3>Completed</h3>
+                            <div id="completedTasks" class="task-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agent Detail View (Modal Overlay) -->
+                <div id="agentDetailModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 id="agentDetailName"></h2>
+                            <button id="closeAgentDetailBtn" class="btn-icon">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                    <path d="M4 4l8 8m0-8l-8 8"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="agentDetailContent" class="agent-detail-content">
+                                <div class="agent-info">
+                                    <div class="info-row">
+                                        <span class="label">Role:</span>
+                                        <span id="agentRole"></span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="label">Status:</span>
+                                        <span id="agentStatus" class="status-badge"></span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="label">Current Task:</span>
+                                        <span id="agentCurrentTask"></span>
+                                    </div>
+                                </div>
+                                <div class="agent-controls">
+                                    <button id="pauseAgentBtn" class="btn-secondary">Pause</button>
+                                    <button id="resumeAgentBtn" class="btn-secondary" style="display: none;">Resume</button>
+                                    <button id="assignTaskBtn" class="btn-primary">Assign Task</button>
+                                </div>
+                                <div class="agent-conversation">
+                                    <h3>Conversation History</h3>
+                                    <div id="agentConversation" class="conversation"></div>
+                                </div>
+                                <div class="agent-stats">
+                                    <h3>Statistics</h3>
+                                    <div id="agentStatsContent"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Create Agent Modal -->
+                <div id="createAgentModal" class="modal" style="display: none;">
+                    <div class="modal-content small">
+                        <div class="modal-header">
+                            <h2>Create New Agent</h2>
+                            <button id="closeCreateAgentBtn" class="btn-icon">×</button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="createAgentForm">
+                                <div class="form-group">
+                                    <label for="agentName">Agent Name</label>
+                                    <input type="text" id="agentName" placeholder="e.g., Frontend Bot" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="agentRole">Role</label>
+                                    <select id="agentRole" required>
+                                        <option value="">Select role...</option>
+                                        <option value="coordinator">Coordinator</option>
+                                        <option value="frontend">Frontend</option>
+                                        <option value="backend">Backend</option>
+                                        <option value="devops">DevOps</option>
+                                        <option value="tester">Tester</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="customPrompt">Custom System Prompt (Optional)</label>
+                                    <textarea id="customPrompt" rows="4" placeholder="Override the default system prompt for this role..."></textarea>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="button" id="cancelCreateAgentBtn" class="btn-secondary">Cancel</button>
+                                    <button type="submit" class="btn-primary">Create Agent</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tool Execution Live Feed (floating panel) -->
+                <div id="toolFeed" class="tool-feed" style="display: none;">
+                    <div class="tool-feed-header">
+                        <h3>🔧 Live Activity</h3>
+                        <button id="closeFeedBtn" class="btn-icon">×</button>
+                    </div>
+                    <div id="toolEvents" class="tool-events"></div>
                 </div>
             </div>
         </main>

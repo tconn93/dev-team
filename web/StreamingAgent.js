@@ -14,12 +14,45 @@ import EventEmitter from 'events';
  * - 'error': Task execution failed
  */
 export class StreamingAgent extends EventEmitter {
-    constructor(projectId, baseDir) {
+    constructor(agentId, baseDir, systemPrompt = null) {
         super();
-        this.projectId = projectId;
+        this.agentId = agentId;
         this.agent = new Agent();
         this.agent.baseDir = baseDir; // Override baseDir for project isolation
+        this.systemPrompt = systemPrompt; // Custom system prompt for this agent
         this.isRunning = false;
+        this.isPaused = false;
+        this.fileLockManager = null; // Will be injected by MultiAgentSessionManager
+    }
+
+    /**
+     * Set file lock manager instance
+     * @param {FileLockManager} fileLockManager
+     */
+    setFileLockManager(fileLockManager) {
+        this.fileLockManager = fileLockManager;
+    }
+
+    /**
+     * Pause task execution (sets flag, actual pause depends on implementation)
+     */
+    pause() {
+        this.isPaused = true;
+    }
+
+    /**
+     * Resume task execution
+     */
+    resume() {
+        this.isPaused = false;
+    }
+
+    /**
+     * Check if agent is paused
+     * @returns {boolean}
+     */
+    get paused() {
+        return this.isPaused;
     }
 
     /**
@@ -33,15 +66,24 @@ export class StreamingAgent extends EventEmitter {
         }
 
         this.isRunning = true;
-        this.emit('start', { prompt, projectId: this.projectId });
+        this.emit('start', { prompt, agentId: this.agentId });
 
         try {
+            // Apply system prompt if provided
+            if (this.systemPrompt && this.agent.history.length === 0) {
+                this.agent.history.push({
+                    role: 'system',
+                    content: this.systemPrompt
+                });
+            }
+
             // Intercept executeTools to emit per-tool events
             const originalExecuteTools = this.agent.executeTools.bind(this.agent);
 
             this.agent.executeTools = async (toolCalls) => {
                 // Emit iteration event with tool count
                 this.emit('iteration', {
+                    agentId: this.agentId,
                     toolCount: toolCalls.length,
                     tools: toolCalls.map(tc => tc.function.name)
                 });
@@ -60,12 +102,14 @@ export class StreamingAgent extends EventEmitter {
                     try {
                         const args = JSON.parse(argsString);
                         this.emit('toolStart', {
+                            agentId: this.agentId,
                             toolName: name,
                             toolCallId: id,
                             args: args
                         });
                     } catch (e) {
                         this.emit('toolStart', {
+                            agentId: this.agentId,
                             toolName: name,
                             toolCallId: id,
                             args: argsString
@@ -79,6 +123,7 @@ export class StreamingAgent extends EventEmitter {
                         const result = await executeToolCall(name, args, context);
 
                         const toolResult = {
+                            agentId: this.agentId,
                             toolCallId: id,
                             toolName: name,
                             success: result.success,
@@ -96,6 +141,7 @@ export class StreamingAgent extends EventEmitter {
 
                     } catch (error) {
                         const errorResult = {
+                            agentId: this.agentId,
                             toolCallId: id,
                             toolName: name,
                             success: false,
@@ -118,13 +164,17 @@ export class StreamingAgent extends EventEmitter {
             const result = await this.agent.generateResponse(prompt);
 
             // Emit completion event
-            this.emit('complete', result);
+            this.emit('complete', {
+                agentId: this.agentId,
+                ...result
+            });
 
             return result;
 
         } catch (error) {
             // Emit error event
             this.emit('error', {
+                agentId: this.agentId,
                 message: error.message,
                 stack: error.stack
             });
@@ -139,6 +189,21 @@ export class StreamingAgent extends EventEmitter {
      * @returns {Array} - Array of message objects
      */
     getHistory() {
+        return this.agent.history;
+    }
+
+    /**
+     * Set conversation history (for loading from database)
+     * @param {Array} history - Array of message objects
+     */
+    set history(history) {
+        this.agent.history = history;
+    }
+
+    /**
+     * Get conversation history (for saving to database)
+     */
+    get history() {
         return this.agent.history;
     }
 
